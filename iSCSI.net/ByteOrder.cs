@@ -2,12 +2,22 @@
 {
     public static class ByteOrder
     {
+        public static ushort ToNetworkOrder(this ushort value)
+        {
+            return (ushort)((value >> 8) | (value << 8));
+        }
+
+        public static ushort ToHostOrder(this ushort value)
+        {
+            return (ushort)((value >> 8) | (value << 8));
+        }
+
         public static uint ToNetworkOrder(this uint value)
         {
             return
                 (value >> 24) |
-                ((value >> 8) & 0xFF) |
-                ((value << 8) & 0xFF) |
+                ((value >> 8) & 0xFF00) |
+                ((value << 8) & 0xFF0000) |
                 (value << 24);
         }
 
@@ -22,27 +32,28 @@
 
         public static ulong ToNetworkOrder(this ulong value)
         {
-            00 01 02 03 04 05 06 07
-            07 06 05 04 03 02 01 00
-
             return
                 (value >> 56) |
-                ((value >> 40) & 0xFF) |
-                ((value >> ) & 0xFF) |
-
-                (value >> 24) |
-                ((value >> 8) & 0xFF) |
-                ((value << 8) & 0xFF) |
-                (value << 24);
+                ((value >> 40) & 0xFF00) |
+                ((value >> 24) & 0xFF0000) |
+                ((value >> 8) & 0xFF000000) |
+                ((value << 8) & 0xFF00000000) |
+                ((value << 24) & 0xFF0000000000) |
+                ((value << 40) & 0xFF000000000000) |
+                (value << 56);
         }
 
-        public static uint ToHostOrder(this uint value)
+        public static ulong ToHostOrder(this ulong value)
         {
             return
-                (value >> 24) |
-                ((value >> 8) & 0xFF00) |
-                ((value << 8) & 0xFF0000) |
-                (value << 24);
+                (value >> 56) |
+                ((value >> 40) & 0xFF00) |
+                ((value >> 24) & 0xFF0000) |
+                ((value >> 8) & 0xFF000000) |
+                ((value << 8) & 0xFF00000000) |
+                ((value << 24) & 0xFF0000000000) |
+                ((value << 40) & 0xFF000000000000) |
+                (value << 56);
         }
     }
 }
