@@ -1,5 +1,6 @@
 ﻿using iSCSI.net.ISCSI;
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Xunit;
 
@@ -52,7 +53,7 @@ namespace iSCSI.net.UnitTests
             // 0x01 = Operational Negotiation.
             // 0x00 = Version Max
             // 0x00 = Version Min
-            Assert.Equal<uint>(((uint)0x010000).ToNetworkOrder(), headerSegment.OpcodeSpecificFields);
+            Assert.Equal<uint>((uint)0x010000, headerSegment.OpcodeSpecificFields);
 
             Assert.Equal(0x00, headerSegment.TotalAHSLength);
             Assert.Equal<uint>(142, headerSegment.DataSegmentLength);
@@ -67,10 +68,107 @@ namespace iSCSI.net.UnitTests
                 0x00, 0x00
             };
             var ISIDandTSIH = BitConverter.ToUInt64(ISIDandTSIHData);
-            Assert.Equal(ISIDandTSIH, headerSegment.LunOpcodeSpecificFields);
+            Assert.Equal(ISIDandTSIH.ToHostOrder(), headerSegment.LunOpcodeSpecificFields);
 
             Assert.Equal<uint>(1, headerSegment.InitiatorTaskTag);
+            
+            // CID
             Assert.Equal<ushort>(0x0001, (ushort)(headerSegment.OpcodeSpecificFields1 >> 48));
+
+            // CmdSN
+            Assert.Equal<uint>(0x0000001, (uint)(headerSegment.OpcodeSpecificFields1 & 0xFFFFFFFF));
+
+            // ExpStatSN
+            Assert.Equal<uint>(0, (uint)(headerSegment.OpcodeSpecificFields2 >> 32));
+        }
+
+        [Fact]
+        public void GetBasicHeaderSegment()
+        {
+            var result = ISCSIPacketReader.GetBasicHeaderSegment(LoginPacket);
+            Assert.True(result.HasValue);
+            Assert.Equal(EOpcode.LoginRequest, result.Value.Opcode);
+        }
+
+        [Fact]
+        public void GetDataSegment()
+        {
+            var result = ISCSIPacketReader.GetDataSegment(LoginPacket);
+            Assert.False(result.IsEmpty);
+            Assert.Equal(142, result.Length);
+
+            // Check the first byte for now
+            Assert.Equal<byte>(0x49, result[0]);
+
+            // TODO: Add test for when additional header segments present
+        } 
+
+        [Fact]
+        public void GetLoginRequestHeader()
+        {
+            var result = ISCSIPacketReader.GetLoginRequestHeader(LoginPacket);
+            Assert.True(result.HasValue);
+
+            var loginHeader = result.Value;
+
+            Assert.True(loginHeader.ImmediateDelivery);
+            Assert.True(loginHeader.Transit);
+            Assert.False(loginHeader.Continue);
+            Assert.Equal(ELoginStage.SecurityNegotiation, loginHeader.CurrentStage);
+            Assert.Equal(ELoginStage.LoginOperationNegotiation, loginHeader.NextStage);
+            Assert.Equal<ulong>(0x400001370000, loginHeader.ISID);
+            Assert.Equal<ushort>(0x0000, loginHeader.TSIH);
+            Assert.Equal<uint>(0x00000001, loginHeader.InitiatorTaskTag);
+            Assert.Equal<ushort>(0x0001, loginHeader.Cid);
+            Assert.Equal<uint>(0x00000001, loginHeader.CmdSn);
+            Assert.Equal<uint>(0x00000000, loginHeader.ExpStatSn);
+        }
+
+        [Fact]
+        public void SetLoginRequestHeaderMembers()
+        {
+            var data = new byte[48];
+            Span<LoginRequestHeaderSegment> headerSegmentArray = MemoryMarshal.Cast<byte, LoginRequestHeaderSegment>(data);
+            Assert.Equal(1, headerSegmentArray.Length);
+
+            var loginHeader = headerSegmentArray[0];
+            loginHeader.Opcode = EOpcode.TextRequest;
+            Assert.Equal(0x04, data[0]);
+
+            loginHeader.ImmediateDelivery = true;
+            Assert.Equal(0x44, data[0]);
+
+            loginHeader.Opcode = EOpcode.LoginRequest;
+            Assert.Equal(0x43, data[0]);
+
+            loginHeader.ImmediateDelivery = false;
+            Assert.Equal(0x03, data[0]);
+
+            Assert.Equal(0x00, data[1]);
+            loginHeader.Transit = true;
+            Assert.Equal(0x80, data[1]);
+            loginHeader.Continue = true;
+            Assert.Equal(0xC0, data[1]);
+            loginHeader.CurrentStage = ELoginStage.FullFeaturePhase;
+            Assert.Equal(0xCC, data[1]);
+            loginHeader.NextStage = ELoginStage.FullFeaturePhase;
+            Assert.Equal(0xCF, data[1]);
+            
+            data[1] = 0xFF;
+            loginHeader.Transit = false;
+            Assert.Equal(0x7F, data[1]);
+            data[1] = 0xFF;
+            loginHeader.Continue = false;
+            Assert.Equal(0xBF, data[1]);
+            data[1] = 0xFF;
+            loginHeader.CurrentStage = ELoginStage.SecurityNegotiation;
+            Assert.Equal(0xF3, data[1]);
+            data[1] = 0xFF;
+            loginHeader.NextStage = ELoginStage.SecurityNegotiation;
+            Assert.Equal(0xFC, data[1]);
+            
+            loginHeader.ISID = 0x010203040506;
+            Assert.Equal(new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x00, 0x00 }, data.Skip(8).Take(8).ToArray());
         }
     }
 }
