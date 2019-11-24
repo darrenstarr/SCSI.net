@@ -131,7 +131,7 @@ namespace iSCSI.net.UnitTests
             Span<LoginRequestHeaderSegment> headerSegmentArray = MemoryMarshal.Cast<byte, LoginRequestHeaderSegment>(data);
             Assert.Equal(1, headerSegmentArray.Length);
 
-            var loginHeader = headerSegmentArray[0];
+            ref LoginRequestHeaderSegment loginHeader = ref headerSegmentArray[0];
             loginHeader.Opcode = EOpcode.TextRequest;
             Assert.Equal(0x04, data[0]);
 
@@ -169,6 +169,25 @@ namespace iSCSI.net.UnitTests
             
             loginHeader.ISID = 0x010203040506;
             Assert.Equal(new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x00, 0x00 }, data.Skip(8).Take(8).ToArray());
+
+            loginHeader.TSIH = 0x0708;
+            Assert.Equal(new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 }, data.Skip(8).Take(8).ToArray());
+
+            loginHeader.ISID = 0x99AABBCCDDEE;
+            Assert.Equal(new byte[] { 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x07, 0x08 }, data.Skip(8).Take(8).ToArray());
+
+            loginHeader.InitiatorTaskTag = 0xDEADBEEF;
+            Assert.Equal(new byte[] { 0xDE, 0xAD, 0xBE, 0xEF }, data.Skip(16).Take(4).ToArray());
+
+            loginHeader.Cid = 0xFF11;
+            Assert.Equal(0xFF, data[20]);
+            Assert.Equal(0x11, data[21]);
+
+            loginHeader.CmdSn = 0xEEAABBFF;
+            Assert.Equal(new byte[] { 0xEE, 0xAA, 0xBB, 0xFF }, data.Skip(24).Take(4).ToArray());
+
+            loginHeader.ExpStatSn = 0x12345678;
+            Assert.Equal(new byte[] { 0x12, 0x34, 0x56, 0x78 }, data.Skip(28).Take(4).ToArray());
         }
     }
 }

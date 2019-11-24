@@ -82,7 +82,7 @@ namespace iSCSI.net.ISCSI
         public ushort TSIH
         {
             get => (ushort)(LunOpcodeSpecificFieldsBE.ToHostOrder() & 0xFFFF);
-            set => ((LunOpcodeSpecificFieldsBE.ToHostOrder() & 0xFFFFFFFFFFFF0000) | (ulong)value).ToNetworkOrder();
+            set => LunOpcodeSpecificFieldsBE = ((LunOpcodeSpecificFieldsBE.ToHostOrder() & 0xFFFFFFFFFFFF0000) | value).ToNetworkOrder();
         }
 
         public ushort Cid
