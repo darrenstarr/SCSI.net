@@ -1,9 +1,9 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 
-namespace iSCSI.net.ISCSI
+namespace iSCSI.net.ISCSI.Segments
 {
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct LoginResponseSegment
+    [StructLayout(LayoutKind.Sequential,Pack=1)]
+    public struct LoginRequestSegment : ISCSISegment
     {
         private byte OpcodeByte;
         private byte Flags;
@@ -12,14 +12,13 @@ namespace iSCSI.net.ISCSI
         private uint LengthsBE;
         private ulong LunOpcodeSpecificFieldsBE;
         private uint InitiatorTaskTagBE;
-        private readonly uint Reserved0;
-        private uint StatSnBE;
-        private uint ExpCmdSnBE;
-        private uint MaxCmdSnBE;
-        private ELoginStatus StatusBE;
-        private readonly ushort Reserved1;
-        private readonly ulong Reserved2;
-
+        private ushort CidBE;
+        private ushort Reserved0;
+        private uint CmdSnBE;
+        private uint ExpStatSnBE;
+        private ulong Reserved1;
+        private ulong Reserved2;
+        
         public bool ImmediateDelivery
         {
             get => (OpcodeByte & 0x40) != 0;
@@ -35,7 +34,7 @@ namespace iSCSI.net.ISCSI
         public bool Transit
         {
             get => (Flags & 0x80) == 0x80;
-            set => Flags = (byte)(value ? Flags | 0x80 : Flags & 0x7F);
+            set => Flags = (byte)(value ? Flags | 0x80 : Flags & 0x7F); 
         }
 
         public bool Continue
@@ -53,7 +52,7 @@ namespace iSCSI.net.ISCSI
         public ELoginStage NextStage
         {
             get => (ELoginStage)(Flags & 0x3);
-            set => Flags = (byte)((Flags & 0xFC) | ((byte)value));
+            set => Flags = (byte)((Flags & 0xFC) | ((byte) value));
         }
 
         public byte TotalAHSLength
@@ -86,28 +85,22 @@ namespace iSCSI.net.ISCSI
             set => LunOpcodeSpecificFieldsBE = ((LunOpcodeSpecificFieldsBE.ToHostOrder() & 0xFFFFFFFFFFFF0000) | value).ToNetworkOrder();
         }
 
-        public uint StatSn
+        public ushort Cid
         {
-            get => StatSnBE.ToHostOrder();
-            set => StatSnBE = value.ToNetworkOrder();
+            get => CidBE.ToHostOrder();
+            set => CidBE = value.ToNetworkOrder();
         }
 
-        public uint ExpCmdSn
+        public uint CmdSn
         {
-            get => ExpCmdSnBE.ToHostOrder();
-            set => ExpCmdSnBE = value.ToNetworkOrder();
+            get => CmdSnBE.ToHostOrder();
+            set => CmdSnBE = value.ToNetworkOrder();
         }
 
-        public uint MaxCmdSn
+        public uint ExpStatSn
         {
-            get => MaxCmdSnBE.ToHostOrder();
-            set => MaxCmdSnBE = value.ToNetworkOrder();
-        }
-
-        public ELoginStatus Status
-        {
-            get => (ELoginStatus)((ushort)StatusBE).ToHostOrder();
-            set => StatusBE = (ELoginStatus)((ushort)value).ToNetworkOrder();
+            get => ExpStatSnBE.ToHostOrder();
+            set => ExpStatSnBE = value.ToNetworkOrder();
         }
     }
 }

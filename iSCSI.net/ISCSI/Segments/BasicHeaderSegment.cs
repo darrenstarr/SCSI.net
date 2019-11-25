@@ -1,9 +1,9 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace iSCSI.net.ISCSI
+namespace iSCSI.net.ISCSI.Segments
 {
     [StructLayout(LayoutKind.Sequential,Pack=1)]
-    public struct BasicHeaderSegment
+    public struct BasicHeaderSegment : ISCSISegment
     {
         private uint OpcodeFieldsBE;
         private uint LengthsBE;

@@ -1,3 +1,4 @@
+using iSCSI.net.ISCSI.Segments;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -5,7 +6,7 @@ using System.Runtime.InteropServices;
 
 namespace iSCSI.net.ISCSI
 {
-    public static class ISCSIPacketReader
+    public static class PacketReader
     {
         public static BasicHeaderSegment? GetBasicHeaderSegment(Span<byte>data)
         {

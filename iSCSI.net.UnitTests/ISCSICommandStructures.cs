@@ -1,5 +1,7 @@
 ﻿using iSCSI.net.ISCSI;
+using iSCSI.net.ISCSI.Segments;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using Xunit;
@@ -100,7 +102,7 @@ namespace iSCSI.net.UnitTests
         [Fact]
         public void GetBasicHeaderSegment()
         {
-            var result = ISCSIPacketReader.GetBasicHeaderSegment(LoginPacket);
+            var result = PacketReader.GetBasicHeaderSegment(LoginPacket);
             Assert.True(result.HasValue);
             Assert.Equal(EOpcode.LoginRequest, result.Value.Opcode);
         }
@@ -108,7 +110,7 @@ namespace iSCSI.net.UnitTests
         [Fact]
         public void GetDataSegment()
         {
-            var result = ISCSIPacketReader.GetDataSegment(LoginPacket);
+            var result = PacketReader.GetDataSegment(LoginPacket);
             Assert.False(result.IsEmpty);
             Assert.Equal(142, result.Length);
 
@@ -121,11 +123,11 @@ namespace iSCSI.net.UnitTests
         [Fact]
         public void GetDataSegmentString()
         {
-            var result = ISCSIPacketReader.GetDataSegment(LoginPacket);
+            var result = PacketReader.GetDataSegment(LoginPacket);
             Assert.False(result.IsEmpty);
             Assert.Equal(142, result.Length);
 
-            var str = ISCSIPacketReader.GetDataSegmentString(LoginPacket);
+            var str = PacketReader.GetDataSegmentString(LoginPacket);
             Assert.False(string.IsNullOrEmpty(str));
             Assert.Equal(142, str.Length);
 
@@ -141,11 +143,11 @@ namespace iSCSI.net.UnitTests
         [Fact]
         public void GetDataSegmentStringParameters()
         {
-            var result = ISCSIPacketReader.GetDataSegment(LoginPacket);
+            var result = PacketReader.GetDataSegment(LoginPacket);
             Assert.False(result.IsEmpty);
             Assert.Equal(142, result.Length);
 
-            var parms = ISCSIPacketReader.GetDataSegmentStringParameters(LoginPacket);
+            var parms = PacketReader.GetDataSegmentStringParameters(LoginPacket);
             Assert.NotNull(parms);
             Assert.Equal(4, parms.Count);
             Assert.True(parms.ContainsKey("InitiatorName"));
@@ -162,7 +164,7 @@ namespace iSCSI.net.UnitTests
         [Fact]
         public void GetLoginRequestSegment()
         {
-            var result = ISCSIPacketReader.GetLoginRequestSegment(LoginPacket);
+            var result = PacketReader.GetLoginRequestSegment(LoginPacket);
             Assert.True(result.HasValue);
 
             var loginHeader = result.Value;
@@ -186,10 +188,10 @@ namespace iSCSI.net.UnitTests
         public void SetLoginRequestSegmentMembers()
         {
             var data = new byte[48];
-            Span<LoginRequestSegment> headerSegmentArray = MemoryMarshal.Cast<byte, LoginRequestSegment>(data);
-            Assert.Equal(1, headerSegmentArray.Length);
+            Span<LoginRequestSegment> loginSegmentArray = MemoryMarshal.Cast<byte, LoginRequestSegment>(data);
+            Assert.Equal(1, loginSegmentArray.Length);
 
-            ref LoginRequestSegment loginHeader = ref headerSegmentArray[0];
+            ref LoginRequestSegment loginHeader = ref loginSegmentArray[0];
             loginHeader.Opcode = EOpcode.TextRequest;
             Assert.Equal(0x04, data[0]);
 
@@ -261,7 +263,7 @@ namespace iSCSI.net.UnitTests
         [Fact]
         public void GetLoginResponseSegment()
         {
-            var result = ISCSIPacketReader.GetLoginResponseSegment(LoginResponsePacket);
+            var result = PacketReader.GetLoginResponseSegment(LoginResponsePacket);
             Assert.True(result.HasValue);
 
             var loginResponseHeader = result.Value;
@@ -358,6 +360,48 @@ namespace iSCSI.net.UnitTests
             loginHeader.Status = ELoginStatus.TooManyConnections;
             Assert.Equal(0x02, data[36]);
             Assert.Equal(0x06, data[37]);
+        }
+
+        [Fact]
+        public void WriteLoginSegment()
+        {
+            var buffer = new byte[9000];
+            var parameters = new Dictionary<string, string>
+            {
+                { "HeaderDigest", "None" },
+                { "DataDigest", "None" },
+                { "ErrorRecoveryLevel", "0" },
+                { "InitialR2T", "Yes" },
+                { "ImmediateData", "No" },
+                { "MaxRecvDataSegmentLength", "8192" },
+                { "MaxBurstLength", "262144" },
+                { "FirstBurstLength", "65536" },
+                { "MaxConnections", "1" },
+                { "DataPDUInOrder", "Yes" },
+                { "DataSequenceInOrder", "Yes" },
+                { "DefaultTime2Wait", "5" },
+                { "DefaultTime2Retain", "5" },
+            };
+
+            var packet = PacketWriter.WriteLoginResponse(buffer, parameters);
+            Span<LoginResponseSegment> loginResponseArray = MemoryMarshal.Cast<byte, LoginResponseSegment>(packet.Slice(0, 48));
+            ref var loginResponse = ref loginResponseArray[0];
+
+            Assert.Equal(EOpcode.LoginResponse, loginResponse.Opcode);
+            Assert.Equal(312, packet.Length);
+            Assert.Equal<uint>(262, loginResponse.DataSegmentLength);
+
+            loginResponse.Transit = true;
+            loginResponse.CurrentStage = ELoginStage.LoginOperationNegotiation;
+            loginResponse.NextStage = ELoginStage.FullFeaturePhase;
+
+            Assert.Equal(0x87, packet[1]);
+
+            var parsedParameters = PacketReader.GetDataSegmentStringParameters(packet);
+            Assert.Equal(13, parsedParameters.Count);
+
+            foreach(var item in parameters)
+                Assert.Equal(item.Value, parsedParameters[item.Key]);
         }
     }
 }
