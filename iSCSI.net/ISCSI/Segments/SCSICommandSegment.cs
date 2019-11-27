@@ -3,7 +3,7 @@
 namespace iSCSI.net.ISCSI.Segments
 {
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct SCSICommandSegment
+    public struct SCSICommandSegment : ISCSISegment
     {
         private byte OpcodeByte;
         private byte Flags;
