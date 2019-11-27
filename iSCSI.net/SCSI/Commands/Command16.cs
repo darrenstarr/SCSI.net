@@ -1,11 +1,12 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace iSCSI.net
+namespace iSCSI.net.SCSI.Commands
+
 {
     [StructLayout(LayoutKind.Sequential, Pack=1)]
-    public struct SCSICommand16
+    public struct Command16
     {
-        public SCSIOperationCode OperationCode;
+        public ESCSIOperationCode OperationCode;
         private byte LunField;
         private uint LogicalBlockBE;
         private uint AdditionalCbpInformationBE;

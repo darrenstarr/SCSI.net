@@ -4,7 +4,7 @@
     /// SCSI Command Operation Codes as described
     /// on Wikipedia <see cref="https://en.wikipedia.org/wiki/SCSI_command"/>
     /// </summary>
-    public enum SCSIOperationCode : byte
+    public enum ESCSIOperationCode : byte
     {
         TestUnwindReady = 0x00,
         Rewind = 0x01,

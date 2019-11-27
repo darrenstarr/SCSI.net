@@ -18,6 +18,26 @@ namespace iSCSI.net.ISCSI
             return null;
         }
 
+        public static SCSICommandSegment? GetSCSICommandSegment(Span<byte> data)
+        {
+            Span<SCSICommandSegment> segmentArray = MemoryMarshal.Cast<byte, SCSICommandSegment>(data.Slice(0, 48));
+
+            if (segmentArray.Length == 1)
+                return segmentArray[0];
+
+            return null;
+        }
+
+        public static SCSIDataInSegment? GetSCSIDataInSegment(Span<byte> data)
+        {
+            Span<SCSIDataInSegment> segmentArray = MemoryMarshal.Cast<byte, SCSIDataInSegment>(data.Slice(0, 48));
+
+            if (segmentArray.Length == 1)
+                return segmentArray[0];
+
+            return null;
+        }
+
         public static LoginRequestSegment? GetLoginRequestSegment(Span<byte> data)
         {
             Span<LoginRequestSegment> headerSegmentArray = MemoryMarshal.Cast<byte, LoginRequestSegment>(data.Slice(0, 48));
@@ -77,6 +97,11 @@ namespace iSCSI.net.ISCSI
                     }
                 )
                 .ToDictionary(t => t.Item1, t => t.Item2);
+        }
+
+        public static Span<byte> GetSCSICommandData(Span<byte> data)
+        {
+            return data.Slice(32, 16);
         }
     }
 }

@@ -53,6 +53,31 @@ namespace iSCSI.net.UnitTests
             0x64, 0x3d, 0x4e, 0x6f, 0x6e, 0x65, 0x00, 0x00
         };
 
+        static readonly byte[] SCSICommandPacket = new byte[]
+        {
+            0x01, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x10,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02,
+            0xa0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00
+        };
+
+        static readonly byte[] SCSIDataInReportLuns = new byte[]
+        {
+            0x25, 0x81, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x02, 0xff, 0xff, 0xff, 0xff,
+            0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x03,
+            0x00, 0x00, 0x00, 0x23, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        };
+
         [Fact]
         public void BasicHeaderSegmentTest()
         {
@@ -402,6 +427,137 @@ namespace iSCSI.net.UnitTests
 
             foreach(var item in parameters)
                 Assert.Equal(item.Value, parsedParameters[item.Key]);
+        }
+
+        [Fact]
+        public void SCSICommandSegmentTest()
+        {
+            Assert.Equal(48, Marshal.SizeOf(typeof(SCSICommandSegment)));
+
+            Span<SCSICommandSegment> commandSegmentArray = MemoryMarshal.Cast<byte, SCSICommandSegment>(SCSICommandPacket.AsSpan(0, 48));
+
+            Assert.Equal(1, commandSegmentArray.Length);
+            var commandSegment = commandSegmentArray[0];
+
+            Assert.False(commandSegment.ImmediateDelivery);
+            Assert.Equal(EOpcode.ScsiCommand, commandSegment.Opcode);
+            Assert.True(commandSegment.Final);
+            Assert.True(commandSegment.Read);
+            Assert.False(commandSegment.Write);
+            Assert.Equal(ESCSICommandAttribute.Untagged, commandSegment.Attributes);
+            Assert.Equal(0, commandSegment.TotalAHSLength);
+            Assert.Equal<ulong>(0, commandSegment.DataSegmentLength);
+            Assert.Equal<ulong>(0, commandSegment.LogicalUnitNumber);
+            Assert.Equal<uint>(1, commandSegment.InitiatorTaskTag);
+            Assert.Equal<uint>(0x10, commandSegment.ExpectedDataTransferLength);
+            Assert.Equal<uint>(0x01, commandSegment.CmdSn);
+            Assert.Equal<uint>(0x02, commandSegment.ExpStatSn);
+
+            Assert.Equal(ESCSIOperationCode.ReportLuns, commandSegment.SCSIOperationCode);
+        }
+
+        [Fact]
+        public void GetSCSICommandSegmentTest()
+        {
+            var segment = PacketReader.GetSCSICommandSegment(SCSICommandPacket);
+            Assert.True(segment.HasValue);
+            Assert.Equal(EOpcode.ScsiCommand, segment.Value.Opcode);
+
+            var commandData = PacketReader.GetSCSICommandData(SCSICommandPacket);
+            Assert.Equal(16, commandData.Length);
+
+            Assert.Equal(ESCSIOperationCode.ReportLuns, segment.Value.SCSIOperationCode);
+
+            Span<SCSI.Commands.ReportLuns12> commandArray = MemoryMarshal.Cast<byte, SCSI.Commands.ReportLuns12>(commandData);
+            Assert.Equal(1, commandArray.Length);
+            var command = commandArray[0];
+
+            Assert.Equal(SCSI.ESelectReport.SelectAll, command.SelectReport);
+            Assert.Equal<uint>(16, command.AllocationLength);
+            Assert.Equal(0, command.Control);
+        }
+
+        [Fact]
+        public void GetSCSIDataInSegmentTest()
+        {
+            Assert.Equal(48, Marshal.SizeOf(typeof(SCSIDataInSegment)));
+
+            var segment = PacketReader.GetSCSIDataInSegment(SCSIDataInReportLuns);
+            Assert.True(segment.HasValue);
+            Assert.Equal(EOpcode.ScsiDataIn, segment.Value.Opcode);
+
+            Assert.True(segment.Value.Final);
+            Assert.False(segment.Value.Acknowledge);
+            Assert.False(segment.Value.ResidualOverflow);
+            Assert.False(segment.Value.ResidualUnderflow);
+            Assert.True(segment.Value.StatusPresent);
+
+            Assert.Equal(EStatusCode.Good, segment.Value.Status);
+            Assert.Equal<uint>(32, segment.Value.DataSegmentLength);
+            Assert.Equal<uint>(0x00000002, segment.Value.InitiatorTaskTag);
+            Assert.Equal(0xFFFFFFFF, segment.Value.TargetTransferTag);
+            Assert.Equal<uint>(0x00000003, segment.Value.StatSn);
+            Assert.Equal<uint>(0x00000003, segment.Value.ExpCmdSn);
+            Assert.Equal<uint>(0x00000023, segment.Value.MaxCmdSn);
+            Assert.Equal<uint>(0x00000000, segment.Value.DataSn);
+            Assert.Equal<uint>(0x00000000, segment.Value.BufferOffset);
+            Assert.Equal<uint>(0x00000000, segment.Value.ResidualCount);
+
+            var lunReportData = PacketReader.GetDataSegment(SCSIDataInReportLuns);
+            Assert.Equal(32, lunReportData.Length);
+
+            var luns = SCSI.PacketReader.ReadLunReport(lunReportData);
+            Assert.NotNull(luns);
+            var lunsList = luns.ToList();
+            Assert.Equal(3, lunsList.Count);
+
+            // TODO: find out why the lun seems to be only 16 of the total 64 bits
+            Assert.Equal<ulong>(0x0006, lunsList[0].Lun);
+            Assert.Equal<ulong>(0x0005, lunsList[1].Lun);
+            Assert.Equal<ulong>(0x0002, lunsList[2].Lun);
+            Assert.Equal<ulong>(0x0002, lunsList[2].Lun);
+        }
+
+        [Fact]
+        public void WriteLunReport()
+        {
+            var buffer = new byte[9000];
+            var lunEntries = new List<SCSI.LunReportEntry>
+            {
+                new SCSI.LunReportEntry
+                {
+                    AddressMethod = SCSI.ELunAddressMethod.PeripheralDevice,
+                    Lun = 0x06
+                },
+                new SCSI.LunReportEntry
+                {
+                    AddressMethod = SCSI.ELunAddressMethod.PeripheralDevice,
+                    Lun = 0x05
+                },
+                new SCSI.LunReportEntry
+                {
+                    AddressMethod = SCSI.ELunAddressMethod.PeripheralDevice,
+                    Lun = 0x02
+                },
+            };
+
+            var packet = PacketWriter.WriteLunReport(buffer, lunEntries);
+            Span<SCSIDataInSegment> dataInSegmentArray = MemoryMarshal.Cast<byte, SCSIDataInSegment>(packet.Slice(0, 48));
+            ref var lunReport = ref dataInSegmentArray[0];
+
+            Assert.Equal(EOpcode.ScsiDataIn, lunReport.Opcode);
+            Assert.Equal(80, packet.Length);
+            Assert.Equal<uint>(32, lunReport.DataSegmentLength);
+
+            lunReport.Final = true;
+            lunReport.StatusPresent = true;
+            lunReport.InitiatorTaskTag = 0x2;
+            lunReport.StatSn = 0x3;
+            lunReport.ExpCmdSn = 0x3;
+            lunReport.MaxCmdSn = 0x23;
+
+            var asData = packet.ToArray();
+            Assert.Equal(SCSIDataInReportLuns, asData);
         }
     }
 }
