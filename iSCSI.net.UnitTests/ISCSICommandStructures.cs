@@ -78,6 +78,16 @@ namespace iSCSI.net.UnitTests
             0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
         };
 
+        static readonly byte[] SCSIInquiryPacket = new byte[]
+        {
+            0x01, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x24,
+            0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04,
+            0x12, 0x00, 0x00, 0x00, 0x24, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        };
+
         [Fact]
         public void BasicHeaderSegmentTest()
         {
@@ -558,6 +568,47 @@ namespace iSCSI.net.UnitTests
 
             var asData = packet.ToArray();
             Assert.Equal(SCSIDataInReportLuns, asData);
+        }
+
+        [Fact]
+        public void SCSIInquiryTest()
+        {
+            Assert.Equal(6, Marshal.SizeOf(typeof(SCSI.Commands.Inquiry6)));
+
+            var segment = PacketReader.GetSCSICommandSegment(SCSIInquiryPacket);
+            Assert.True(segment.HasValue);
+            Assert.Equal(EOpcode.ScsiCommand, segment.Value.Opcode);
+
+            var commandData = PacketReader.GetSCSICommandData(SCSIInquiryPacket);
+            Assert.Equal(16, commandData.Length);
+
+            Assert.Equal(ESCSIOperationCode.Inquiry, segment.Value.SCSIOperationCode);
+
+            Span<SCSI.Commands.Inquiry6> commandArray = MemoryMarshal.Cast<byte, SCSI.Commands.Inquiry6>(commandData.Slice(0,6));
+            Assert.Equal(1, commandArray.Length);
+            var command = commandArray[0];
+
+            Assert.False(command.Evpd);
+            Assert.Equal<uint>(36, command.AllocationLength);
+            Assert.Equal(0, command.Control);
+        }
+
+        [Fact]
+        public void WriteSCSIInquiry()
+        {
+            var inquiryLun = new SCSI.LunReportEntry
+            {
+                AddressMethod = SCSI.ELunAddressMethod.PeripheralDevice,
+                Lun = 2
+            };
+
+            var buffer = new byte[9000];
+            var inquiryCommandData = PacketWriter.WriteInquiry(buffer, inquiryLun, 0x3, 0x3, 0x4, false);
+            Assert.Equal(48, inquiryCommandData.Length);
+            
+            var inquiryCommandArray = inquiryCommandData.ToArray();
+
+            Assert.Equal(SCSIInquiryPacket, inquiryCommandArray);
         }
     }
 }

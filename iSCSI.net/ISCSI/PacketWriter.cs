@@ -34,6 +34,33 @@ namespace iSCSI.net.ISCSI
             return buffer.Slice(0, dataSegmentStart + dataSegmentLength + paddingLength);
         }
 
+        public static Span<byte> WriteInquiry(Span<byte> buffer, SCSI.LunReportEntry lun, uint initiatorTaskTag, uint commandSn, uint expectedStatusSn, bool evpd)
+        {
+            var result = buffer.Slice(0, 48);
+            result.Clear();
+
+            var commandArray = MemoryMarshal.Cast<byte, SCSICommandSegment>(result);
+            ref var command = ref commandArray[0];
+
+            command.Opcode = EOpcode.ScsiCommand;
+            command.Final = true;
+            command.Read = true;
+            command.LogicalUnitNumber = lun.LunRaw;
+            command.CmdSn = commandSn;
+            command.DataSegmentLength = 0;
+            command.InitiatorTaskTag = initiatorTaskTag;
+            command.ExpectedDataTransferLength = 36;
+            command.ExpStatSn = expectedStatusSn;
+
+            var command6Array = MemoryMarshal.Cast<byte, SCSI.Commands.Inquiry6>(buffer.Slice(32, 6));
+            ref var command6 = ref command6Array[0];
+            command6.OperationCode = ESCSIOperationCode.Inquiry;
+            command6.Evpd = evpd;
+            command6.AllocationLength = 36;
+
+            return result;
+        }
+
         public static Span<byte> WriteLunReport(Span<byte> buffer, List<SCSI.LunReportEntry> entries)
         {
             var paddingLength = 0;

@@ -3,7 +3,7 @@
 namespace iSCSI.net.SCSI.Commands
 
 {
-    [StructLayout(LayoutKind.Sequential)]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Command6
     {
         public ESCSIOperationCode OperationCode;
